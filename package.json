@@ -1,0 +1,25 @@
+{
+  "name": "ai-lead-assistant",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Qualify inbound leads, reply over a WhatsApp-style webhook, and book meetings.",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w server",
+    "dev:worker": "npm run worker -w server",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w server && npm run build -w web",
+    "lint": "npm run lint -w server && npm run lint -w web",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
+    "test": "npm run test -w server",
+    "test:unit": "npm run test:unit -w server",
+    "prisma:generate": "npm run prisma:generate -w server",
+    "prisma:deploy": "npm run prisma:deploy -w server"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

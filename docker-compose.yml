@@ -1,0 +1,103 @@
+# Local demo stack. AI_MODE defaults to mock so the app runs without an API key.
+# Set AI_MODE=openai and OPENAI_API_KEY in a root .env file to use live tool calling.
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: lead_assistant
+      MYSQL_USER: lead
+      MYSQL_PASSWORD: lead
+      MYSQL_ROOT_PASSWORD: root
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/01-test-db.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: lead-assistant-api
+    init: true
+    environment: &app-env
+      DATABASE_URL: mysql://lead:lead@mysql:3306/lead_assistant
+      REDIS_URL: redis://redis:6379
+      AI_MODE: ${AI_MODE:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      PORT: "4000"
+      WEB_ORIGIN: http://localhost:3000,http://127.0.0.1:3000
+      QUEUE_DRIVER: bullmq
+      FOLLOW_UP_DELAY_MS: ${FOLLOW_UP_DELAY_MS:-86400000}
+      APP_TIMEZONE: Asia/Jerusalem
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  worker:
+    image: lead-assistant-api
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    init: true
+    command: ["node", "dist/worker.js"]
+    environment: *app-env
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000
+    init: true
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
