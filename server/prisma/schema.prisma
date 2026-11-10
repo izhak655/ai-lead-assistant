@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum LeadStatus {
+  NEW
+  QUALIFYING
+  QUALIFIED
+  UNQUALIFIED
+  MEETING_BOOKED
+}
+
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+
+enum MeetingStatus {
+  BOOKED
+  CANCELLED
+}
+
+model Lead {
+  id             String     @id @default(cuid())
+  name           String     @default("Unknown")
+  phone          String     @unique @db.VarChar(32)
+  email          String?    @db.VarChar(255)
+  company        String?    @db.VarChar(255)
+  source         String     @default("whatsapp") @db.VarChar(32)
+  status         LeadStatus @default(NEW)
+  score          Int        @default(0)
+  need           String?    @db.Text
+  budget         String?    @db.VarChar(255)
+  timeline       String?    @db.VarChar(255)
+  authority      String?    @db.VarChar(255)
+  summary        String?    @db.Text
+  proposedSlots  Json?
+  followUpDueAt  DateTime?
+  followUpSentAt DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  messages       Message[]
+  meetings       Meeting[]
+
+  @@index([status])
+  @@index([updatedAt])
+}
+
+model Message {
+  id         String    @id @default(cuid())
+  leadId     String
+  direction  Direction
+  body       String    @db.Text
+  externalId String?   @unique @db.VarChar(128)
+  createdAt  DateTime  @default(now())
+  lead       Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt])
+}
+
+model Meeting {
+  id        String        @id @default(cuid())
+  leadId    String
+  title     String        @db.VarChar(255)
+  startsAt  DateTime
+  endsAt    DateTime
+  status    MeetingStatus @default(BOOKED)
+  notes     String?       @db.Text
+  createdAt DateTime      @default(now())
+  lead      Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([startsAt])
+}
